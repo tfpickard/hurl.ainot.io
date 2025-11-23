@@ -14,6 +14,7 @@ export class StoryModel {
           id: randomUUID(),
           title: $title,
           content: $content,
+          coverImageUrl: $coverImageUrl,
           createdAt: datetime(),
           updatedAt: datetime(),
           metadata: $metadata
@@ -23,6 +24,7 @@ export class StoryModel {
         {
           title: node.title,
           content: node.content,
+          coverImageUrl: node.coverImageUrl || null,
           metadata: node.metadata || {},
         }
       );
@@ -34,6 +36,7 @@ export class StoryModel {
         id: storyNode.id,
         title: storyNode.title,
         content: storyNode.content,
+        coverImageUrl: storyNode.coverImageUrl || undefined,
         createdAt: storyNode.createdAt.toString(),
         updatedAt: storyNode.updatedAt.toString(),
         metadata: storyNode.metadata,
@@ -63,6 +66,7 @@ export class StoryModel {
         id: storyNode.id,
         title: storyNode.title,
         content: storyNode.content,
+        coverImageUrl: storyNode.coverImageUrl || undefined,
         createdAt: storyNode.createdAt.toString(),
         updatedAt: storyNode.updatedAt.toString(),
         metadata: storyNode.metadata,
@@ -88,6 +92,10 @@ export class StoryModel {
       if (updates.content !== undefined) {
         setClauses.push('s.content = $content');
         params.content = updates.content;
+      }
+      if (updates.coverImageUrl !== undefined) {
+        setClauses.push('s.coverImageUrl = $coverImageUrl');
+        params.coverImageUrl = updates.coverImageUrl;
       }
       if (updates.metadata !== undefined) {
         setClauses.push('s.metadata = $metadata');
@@ -118,6 +126,7 @@ export class StoryModel {
         id: storyNode.id,
         title: storyNode.title,
         content: storyNode.content,
+        coverImageUrl: storyNode.coverImageUrl || undefined,
         createdAt: storyNode.createdAt.toString(),
         updatedAt: storyNode.updatedAt.toString(),
         metadata: storyNode.metadata,
@@ -198,6 +207,7 @@ export class StoryModel {
           label: startNode.title,
           title: startNode.title,
           content: startNode.content,
+          coverImageUrl: startNode.coverImageUrl,
         });
       }
 
@@ -208,6 +218,7 @@ export class StoryModel {
           label: connectedNode.title,
           title: connectedNode.title,
           content: connectedNode.content,
+          coverImageUrl: connectedNode.coverImageUrl || undefined,
         });
 
         const relationships = record.get('rels');
@@ -244,6 +255,7 @@ export class StoryModel {
           id: node.id,
           title: node.title,
           content: node.content,
+          coverImageUrl: node.coverImageUrl || undefined,
           createdAt: node.createdAt.toString(),
           updatedAt: node.updatedAt.toString(),
           metadata: node.metadata,
@@ -278,6 +290,7 @@ export class StoryModel {
           label: sourceNode.title,
           title: sourceNode.title,
           content: sourceNode.content,
+          coverImageUrl: sourceNode.coverImageUrl || undefined,
         });
 
         const relationship = record.get('r');
@@ -290,6 +303,7 @@ export class StoryModel {
             label: targetProps.title,
             title: targetProps.title,
             content: targetProps.content,
+            coverImageUrl: targetProps.coverImageUrl || undefined,
           });
 
           links.push({

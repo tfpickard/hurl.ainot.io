@@ -5,7 +5,9 @@ A Next.js application for creating and exploring interconnected stories using Ne
 ## Features
 
 - **Graph Database**: Neo4j Aura for powerful story relationship traversal
-- **Interactive Visualization**: Real-time force-directed graph visualization
+- **AI-Generated Cover Art**: Stable Diffusion XL via Replicate (~$0.0025/image)
+- **Vercel Blob Storage**: Automatic image hosting with CDN
+- **Interactive Visualization**: Real-time force-directed graph visualization with cover art
 - **Story Creation**: Create stories and link them with meaningful relationships
 - **Relationship Types**:
   - `LEADS_TO` - Sequential narrative flow
@@ -13,6 +15,8 @@ A Next.js application for creating and exploring interconnected stories using Ne
   - `BRANCHES_FROM` - Alternative story paths
   - `MERGES_WITH` - Convergent narratives
   - `INSPIRED_BY` - Creative influences
+- **Usage Statistics**: Track image generation costs, storage, and API calls
+- **Rate Limiting**: Configurable daily limits to control costs
 - **Vercel Deployment**: Optimized for serverless deployment
 - **Full TypeScript**: End-to-end type safety
 
@@ -20,6 +24,8 @@ A Next.js application for creating and exploring interconnected stories using Ne
 
 - **Frontend**: Next.js 14 (App Router), React 18, TypeScript
 - **Database**: Neo4j Aura (Free Tier available)
+- **AI Image Generation**: Stable Diffusion XL via Replicate
+- **Image Storage**: Vercel Blob Storage
 - **Visualization**: react-force-graph
 - **Validation**: Zod
 - **Deployment**: Vercel
@@ -65,13 +71,24 @@ Create a `.env.local` file in the root directory:
 cp .env.example .env.local
 ```
 
-Edit `.env.local` with your Neo4j Aura credentials:
+Edit `.env.local` with your credentials:
 
 ```env
+# Neo4j Aura
 NEO4J_URI=neo4j+s://your-instance-id.databases.neo4j.io
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your-password-from-download
+
+# Replicate (for AI image generation)
+REPLICATE_API_TOKEN=r8_your_token_from_replicate
+
+# Vercel Blob (auto-configured on Vercel, or create at vercel.com/dashboard/stores)
+BLOB_READ_WRITE_TOKEN=vercel_blob_rw_your_token
 ```
+
+**Getting API Keys:**
+- **Replicate**: Sign up at [replicate.com](https://replicate.com) and get your token from [account/api-tokens](https://replicate.com/account/api-tokens)
+- **Vercel Blob**: For local dev, create a blob store at [vercel.com/dashboard/stores](https://vercel.com/dashboard/stores). On Vercel deployments, this is auto-configured.
 
 ### 4. Run Locally
 
@@ -119,6 +136,8 @@ Follow the prompts and add your environment variables when asked.
    - `NEO4J_URI`
    - `NEO4J_USERNAME`
    - `NEO4J_PASSWORD`
+   - `REPLICATE_API_TOKEN`
+   - `BLOB_READ_WRITE_TOKEN` (auto-configured if you create a Vercel Blob store)
 6. Click "Deploy"
 
 ## API Endpoints
@@ -132,6 +151,11 @@ Follow the prompts and add your environment variables when asked.
 - `DELETE /api/stories/[id]` - Delete a story
 - `GET /api/stories/[id]/connections?depth=2` - Get connected stories
 
+### AI Image Generation
+
+- `POST /api/stories/[id]/generate-image` - Generate cover art for a story
+- `GET /api/stories/[id]/generate-image` - Check generation status and limits
+
 ### Relationships
 
 - `POST /api/relationships` - Create a relationship between stories
@@ -140,9 +164,67 @@ Follow the prompts and add your environment variables when asked.
 
 - `GET /api/graph` - Get the entire story graph
 
+### Statistics
+
+- `GET /api/statistics?type=today` - Get today's usage statistics
+- `GET /api/statistics?type=total` - Get all-time statistics
+- `GET /api/statistics?type=range&startDate=2025-01-01&endDate=2025-01-31` - Get date range stats
+
+### Configuration
+
+- `GET /api/config` - Get all configuration values
+- `POST /api/config` - Set a configuration value
+- `PUT /api/config` - Initialize default configuration
+
 ### Health
 
 - `GET /api/health` - Check database connectivity
+
+## AI Image Generation
+
+### How It Works
+
+1. Select a story from the list
+2. Click "Generate Cover Art" button
+3. The system:
+   - Creates a prompt from your story title and content
+   - Sends it to Stable Diffusion XL via Replicate
+   - Generates a 1024x1024 image (~3-5 seconds)
+   - Uploads to Vercel Blob Storage
+   - Updates the story with the cover URL
+   - Records cost and usage statistics
+
+### Cost Control
+
+The system includes built-in cost controls:
+
+- **Daily Limit**: Default 100 images/day (configurable)
+- **Cost Tracking**: Real-time cost monitoring (~$0.0025/image)
+- **Storage Tracking**: Monitor Vercel Blob usage
+- **Statistics Dashboard**: View usage in the UI header
+
+### Customizing Image Generation
+
+```bash
+# Generate with custom prompt
+curl -X POST http://localhost:3000/api/stories/[story-id]/generate-image \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "A mystical forest at twilight, digital art", "style": "fantasy art"}'
+```
+
+### Configuration
+
+Modify image generation settings in Neo4j:
+
+```bash
+curl -X POST http://localhost:3000/api/config \
+  -H "Content-Type: application/json" \
+  -d '{"key": "daily_image_limit", "value": "50"}'
+
+curl -X POST http://localhost:3000/api/config \
+  -H "Content-Type: application/json" \
+  -d '{"key": "sdxl_inference_steps", "value": "40"}'
+```
 
 ## Example Usage
 
@@ -225,15 +307,36 @@ RETURN path
   - 100GB bandwidth/month
   - Unlimited sites
 
+- **Vercel Blob**:
+  - Free tier: 1GB storage
+  - ~400 cover images at 1024x1024
+
 - **Neo4j Aura Free**:
   - 200,000 nodes
   - 400,000 relationships
   - 50 MB storage
   - Perfect for development and small projects
 
+### Pay-As-You-Go
+
+- **Replicate (Stable Diffusion XL)**:
+  - ~$0.0025 per image
+  - 100 images = $0.25
+  - 1,000 images = $2.50
+
+### Monthly Cost Examples
+
+| Usage | Images/Month | Cost |
+|-------|--------------|------|
+| Light | 100 | **$0.25** (+ Free tiers) |
+| Medium | 500 | **$1.25** (+ Free tiers) |
+| Heavy | 2,000 | **$5.00** (+ Free tiers) |
+| Very Heavy | 10,000 | **$25** + Vercel Blob ($5-10) |
+
 ### If You Need to Scale
 
 - **Vercel Pro**: $20/month (if you need more bandwidth)
+- **Vercel Blob Pro**: $0.15/GB after free tier
 - **Neo4j Aura Professional**: Starts at $65/month
   - 2GB RAM
   - Unlimited storage

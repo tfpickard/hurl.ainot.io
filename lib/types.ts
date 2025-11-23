@@ -5,6 +5,7 @@ export const StoryNodeSchema = z.object({
   id: z.string(),
   title: z.string(),
   content: z.string(),
+  coverImageUrl: z.string().url().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   metadata: z.record(z.any()).optional(),
@@ -29,6 +30,7 @@ export interface GraphNode {
   label: string;
   title: string;
   content: string;
+  coverImageUrl?: string;
 }
 
 export interface GraphLink {
