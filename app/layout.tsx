@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { Navigation } from './components/Navigation';
 
 export const metadata: Metadata = {
-  title: 'Hurl - Interactive Story Graph',
-  description: 'Create and explore interconnected stories using graph database technology',
+  title: 'Hurl - AI-Generated Stories',
+  description: 'Explore autonomous science fiction tales evolving in real time',
 };
 
 export default function RootLayout({
@@ -13,7 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Navigation />
+        {children}
+      </body>
     </html>
   );
 }

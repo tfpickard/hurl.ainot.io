@@ -2,10 +2,49 @@ import { NextRequest, NextResponse } from 'next/server';
 import { StoryModel } from '@/lib/models/story';
 import { StoryNodeSchema } from '@/lib/types';
 
-// GET all stories
-export async function GET() {
+// GET all stories with optional filtering and sorting
+export async function GET(request: NextRequest) {
   try {
-    const stories = await StoryModel.getAllNodes();
+    const searchParams = request.nextUrl.searchParams;
+
+    const options: any = {};
+
+    // Status filter
+    const status = searchParams.get('status');
+    if (status === 'active' || status === 'completed') {
+      options.status = status;
+    }
+
+    // Recommended filter
+    const recommended = searchParams.get('recommended');
+    if (recommended === 'true') {
+      options.recommended = true;
+    }
+
+    // Search
+    const search = searchParams.get('search');
+    if (search) {
+      options.search = search;
+    }
+
+    // Sorting
+    const sortBy = searchParams.get('sortBy');
+    if (sortBy === 'latest' || sortBy === 'oldest' || sortBy === 'chapters') {
+      options.sortBy = sortBy;
+    }
+
+    // Pagination
+    const limit = searchParams.get('limit');
+    if (limit) {
+      options.limit = parseInt(limit, 10);
+    }
+
+    const skip = searchParams.get('skip');
+    if (skip) {
+      options.skip = parseInt(skip, 10);
+    }
+
+    const stories = await StoryModel.getAllNodes(options);
     return NextResponse.json({ success: true, data: stories });
   } catch (error: any) {
     return NextResponse.json(
