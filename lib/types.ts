@@ -1,17 +1,34 @@
 import { z } from 'zod';
 
-// Story node schema
+// Story node schema with chapters support
 export const StoryNodeSchema = z.object({
   id: z.string(),
   title: z.string(),
-  content: z.string(),
+  content: z.string(), // Opening excerpt/description
   coverImageUrl: z.string().url().optional(),
+  status: z.enum(['active', 'completed']).default('active'),
+  genres: z.array(z.string()).default([]),
+  tags: z.array(z.string()).default([]),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   metadata: z.record(z.any()).optional(),
+  chapterCount: z.number().default(0).optional(),
+  recommended: z.boolean().default(false),
 });
 
 export type StoryNode = z.infer<typeof StoryNodeSchema>;
+
+// Chapter node schema
+export const ChapterSchema = z.object({
+  id: z.string(),
+  storyId: z.string(),
+  order: z.number(),
+  title: z.string(),
+  content: z.string(),
+  createdAt: z.string().datetime(),
+});
+
+export type Chapter = z.infer<typeof ChapterSchema>;
 
 // Story relationship schema
 export const StoryRelationshipSchema = z.object({

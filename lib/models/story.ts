@@ -5,7 +5,7 @@ export class StoryModel {
   /**
    * Create a new story node
    */
-  static async createNode(node: Omit<StoryNode, 'id' | 'createdAt' | 'updatedAt'>): Promise<StoryNode> {
+  static async createNode(node: Omit<StoryNode, 'id' | 'createdAt' | 'updatedAt' | 'chapterCount'>): Promise<StoryNode> {
     const session = await getSession();
     try {
       const result = await session.run(
@@ -15,6 +15,10 @@ export class StoryModel {
           title: $title,
           content: $content,
           coverImageUrl: $coverImageUrl,
+          status: $status,
+          genres: $genres,
+          tags: $tags,
+          recommended: $recommended,
           createdAt: datetime(),
           updatedAt: datetime(),
           metadata: $metadata
@@ -25,6 +29,10 @@ export class StoryModel {
           title: node.title,
           content: node.content,
           coverImageUrl: node.coverImageUrl || null,
+          status: node.status || 'active',
+          genres: node.genres || [],
+          tags: node.tags || [],
+          recommended: node.recommended || false,
           metadata: node.metadata || {},
         }
       );
@@ -37,9 +45,14 @@ export class StoryModel {
         title: storyNode.title,
         content: storyNode.content,
         coverImageUrl: storyNode.coverImageUrl || undefined,
+        status: storyNode.status,
+        genres: storyNode.genres,
+        tags: storyNode.tags,
+        recommended: storyNode.recommended,
         createdAt: storyNode.createdAt.toString(),
         updatedAt: storyNode.updatedAt.toString(),
         metadata: storyNode.metadata,
+        chapterCount: 0,
       };
     } finally {
       await session.close();
@@ -53,7 +66,11 @@ export class StoryModel {
     const session = await getSession();
     try {
       const result = await session.run(
-        'MATCH (s:Story {id: $id}) RETURN s',
+        `
+        MATCH (s:Story {id: $id})
+        OPTIONAL MATCH (s)-[:HAS_CHAPTER]->(c:Chapter)
+        RETURN s, count(c) as chapterCount
+        `,
         { id }
       );
 
@@ -62,14 +79,21 @@ export class StoryModel {
       }
 
       const storyNode = result.records[0].get('s').properties;
+      const chapterCount = result.records[0].get('chapterCount').toNumber();
+
       return {
         id: storyNode.id,
         title: storyNode.title,
         content: storyNode.content,
         coverImageUrl: storyNode.coverImageUrl || undefined,
+        status: storyNode.status || 'active',
+        genres: storyNode.genres || [],
+        tags: storyNode.tags || [],
+        recommended: storyNode.recommended || false,
         createdAt: storyNode.createdAt.toString(),
         updatedAt: storyNode.updatedAt.toString(),
-        metadata: storyNode.metadata,
+        metadata: storyNode.metadata || {},
+        chapterCount,
       };
     } finally {
       await session.close();
@@ -79,7 +103,7 @@ export class StoryModel {
   /**
    * Update a story node
    */
-  static async updateNode(id: string, updates: Partial<Omit<StoryNode, 'id' | 'createdAt'>>): Promise<StoryNode | null> {
+  static async updateNode(id: string, updates: Partial<Omit<StoryNode, 'id' | 'createdAt' | 'chapterCount'>>): Promise<StoryNode | null> {
     const session = await getSession();
     try {
       const setClauses = [];
@@ -96,6 +120,22 @@ export class StoryModel {
       if (updates.coverImageUrl !== undefined) {
         setClauses.push('s.coverImageUrl = $coverImageUrl');
         params.coverImageUrl = updates.coverImageUrl;
+      }
+      if (updates.status !== undefined) {
+        setClauses.push('s.status = $status');
+        params.status = updates.status;
+      }
+      if (updates.genres !== undefined) {
+        setClauses.push('s.genres = $genres');
+        params.genres = updates.genres;
+      }
+      if (updates.tags !== undefined) {
+        setClauses.push('s.tags = $tags');
+        params.tags = updates.tags;
+      }
+      if (updates.recommended !== undefined) {
+        setClauses.push('s.recommended = $recommended');
+        params.recommended = updates.recommended;
       }
       if (updates.metadata !== undefined) {
         setClauses.push('s.metadata = $metadata');
@@ -121,16 +161,7 @@ export class StoryModel {
         return null;
       }
 
-      const storyNode = result.records[0].get('s').properties;
-      return {
-        id: storyNode.id,
-        title: storyNode.title,
-        content: storyNode.content,
-        coverImageUrl: storyNode.coverImageUrl || undefined,
-        createdAt: storyNode.createdAt.toString(),
-        updatedAt: storyNode.updatedAt.toString(),
-        metadata: storyNode.metadata,
-      };
+      return await this.getNodeById(id);
     } finally {
       await session.close();
     }
@@ -242,25 +273,115 @@ export class StoryModel {
   }
 
   /**
-   * Get all story nodes
+   * Get all story nodes with optional filtering and sorting
    */
-  static async getAllNodes(): Promise<StoryNode[]> {
+  static async getAllNodes(options?: {
+    status?: 'active' | 'completed';
+    recommended?: boolean;
+    search?: string;
+    sortBy?: 'latest' | 'oldest' | 'chapters';
+    limit?: number;
+    skip?: number;
+  }): Promise<StoryNode[]> {
     const session = await getSession();
     try {
-      const result = await session.run('MATCH (s:Story) RETURN s ORDER BY s.createdAt DESC');
+      const whereClauses = [];
+      const params: any = {};
+
+      if (options?.status) {
+        whereClauses.push('s.status = $status');
+        params.status = options.status;
+      }
+
+      if (options?.recommended !== undefined) {
+        whereClauses.push('s.recommended = $recommended');
+        params.recommended = options.recommended;
+      }
+
+      if (options?.search) {
+        whereClauses.push('(s.title CONTAINS $search OR s.content CONTAINS $search)');
+        params.search = options.search;
+      }
+
+      const whereClause = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+      let orderBy = 'ORDER BY s.createdAt DESC';
+      if (options?.sortBy === 'oldest') {
+        orderBy = 'ORDER BY s.createdAt ASC';
+      } else if (options?.sortBy === 'chapters') {
+        orderBy = 'ORDER BY chapterCount DESC, s.createdAt DESC';
+      }
+
+      const limit = options?.limit ? `LIMIT ${options.limit}` : '';
+      const skip = options?.skip ? `SKIP ${options.skip}` : '';
+
+      const result = await session.run(
+        `
+        MATCH (s:Story)
+        ${whereClause}
+        OPTIONAL MATCH (s)-[:HAS_CHAPTER]->(c:Chapter)
+        WITH s, count(c) as chapterCount
+        ${orderBy}
+        ${skip}
+        ${limit}
+        RETURN s, chapterCount
+        `,
+        params
+      );
 
       return result.records.map(record => {
         const node = record.get('s').properties;
+        const chapterCount = record.get('chapterCount').toNumber();
         return {
           id: node.id,
           title: node.title,
           content: node.content,
           coverImageUrl: node.coverImageUrl || undefined,
+          status: node.status || 'active',
+          genres: node.genres || [],
+          tags: node.tags || [],
+          recommended: node.recommended || false,
           createdAt: node.createdAt.toString(),
           updatedAt: node.updatedAt.toString(),
-          metadata: node.metadata,
+          metadata: node.metadata || {},
+          chapterCount,
         };
       });
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Get aggregate statistics
+   */
+  static async getStatistics(): Promise<{
+    totalStories: number;
+    activeStories: number;
+    completedStories: number;
+    totalChapters: number;
+  }> {
+    const session = await getSession();
+    try {
+      const result = await session.run(
+        `
+        MATCH (s:Story)
+        OPTIONAL MATCH (s)-[:HAS_CHAPTER]->(c:Chapter)
+        RETURN
+          count(DISTINCT s) as totalStories,
+          count(DISTINCT CASE WHEN s.status = 'active' THEN s END) as activeStories,
+          count(DISTINCT CASE WHEN s.status = 'completed' THEN s END) as completedStories,
+          count(c) as totalChapters
+        `
+      );
+
+      const record = result.records[0];
+      return {
+        totalStories: record.get('totalStories').toNumber(),
+        activeStories: record.get('activeStories').toNumber(),
+        completedStories: record.get('completedStories').toNumber(),
+        totalChapters: record.get('totalChapters').toNumber(),
+      };
     } finally {
       await session.close();
     }
